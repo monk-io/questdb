@@ -1797,7 +1797,8 @@ public final class TableUtils {
             @Nullable CharSequence bloomFilterColumns,
             double bloomFilterFpp,
             DirectIntList bloomFilterIndexes,
-            long squashTracker
+            long squashTracker,
+            long seqTxn
     ) {
         final FilesFacade ff = configuration.getFilesFacade();
         final int partitionBy = metadata.getPartitionBy();
@@ -1999,7 +2000,8 @@ public final class TableUtils {
                         fpp,
                         minCompressionRatio,
                         Files.toOsFd(parquetMetaFd),
-                        squashTracker
+                        squashTracker,
+                        seqTxn
                 );
                 // Persist _pm before the caller commits _txn. _txn field 3 will reference
                 // a parquet_meta_file_size that resolves only if the _pm bytes survive a
