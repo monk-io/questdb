@@ -1,0 +1,132 @@
+namespace: questdb
+
+stack-db:
+  defines: runnable
+  inherits: questdb/base
+  metadata:
+    name: QuestDB Standalone Stack Database
+    description: |
+      Production-oriented standalone QuestDB deployment with durable storage,
+      private HTTP, PostgreSQL wire, ILP, and health services. No service is
+      published to the internet by default; inheriting production templates may
+      add ingress only around authenticated HTTP front doors.
+    tags: questdb, database, time-series, standalone, production
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  variables:
+    storage-volume-name:
+      type: string
+      value: questdb-stack
+      description: Monk volume subdirectory used for durable data in the standalone stack.
+    http-user:
+      type: string
+      env: QDB_HTTP_USER
+      value: questdb
+      description: QuestDB HTTP basic-auth user for the standalone stack.
+    http-password:
+      type: string
+      env: QDB_HTTP_PASSWORD
+      value: <- random-uuid
+      description: Sensitive generated QuestDB HTTP password. Inheriting production deployments needing stable credentials must set this with secret("questdb-http-password").
+    pg-user:
+      type: string
+      env: QDB_PG_USER
+      value: questdb
+      description: QuestDB PostgreSQL wire user for the standalone stack.
+    pg-password:
+      type: string
+      env: QDB_PG_PASSWORD
+      value: <- random-uuid
+      description: Sensitive generated QuestDB PostgreSQL wire password. Inheriting production deployments needing stable credentials must set this with secret("questdb-pg-password").
+
+stack:
+  defines: process-group
+  metadata:
+    name: QuestDB Standalone Stack
+    description: |
+      Secure production-oriented QuestDB stack. It runs a durable QuestDB
+      database with generated non-default sensitive values and keeps all database
+      services private on the Monk network. Inheriting production deployments
+      should replace generated sensitive values with plain-name secret(...)
+      references.
+    tags: questdb, database, time-series, standalone, production
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  runnable-list:
+    - questdb/stack-db
+
+stack-local-db:
+  defines: runnable
+  inherits: questdb/base
+  metadata:
+    name: QuestDB Standalone Local Database
+    description: |
+      Local verification flavor of the standalone QuestDB stack. It publishes
+      only the minimal HTTP health endpoint on a non-privileged host port because
+      Monk ingress does not work on local targets.
+    tags: questdb, database, time-series, standalone, local
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  variables:
+    storage-volume-name:
+      type: string
+      value: questdb-stack-local
+      description: Monk volume subdirectory used for durable data in the local standalone flavor.
+    http-user:
+      type: string
+      env: QDB_HTTP_USER
+      value: questdb
+      description: QuestDB HTTP basic-auth user for the local standalone flavor.
+    http-password:
+      type: string
+      env: QDB_HTTP_PASSWORD
+      value: <- random-uuid
+      description: Sensitive generated QuestDB HTTP password for the local standalone flavor. Inheriting deployments needing stable credentials must set this with secret("questdb-http-password").
+    pg-user:
+      type: string
+      env: QDB_PG_USER
+      value: questdb
+      description: QuestDB PostgreSQL wire user for the local standalone flavor.
+    pg-password:
+      type: string
+      env: QDB_PG_PASSWORD
+      value: <- random-uuid
+      description: Sensitive generated QuestDB PostgreSQL wire password for the local standalone flavor. Inheriting deployments needing stable credentials must set this with secret("questdb-pg-password").
+    health-host-port:
+      type: int
+      value: 19003
+      description: Non-privileged host port published for external local health verification.
+  services:
+    health:
+      container: questdb
+      port: <- $health-port
+      protocol: tcp
+      publish: true
+      host-port: <- $health-host-port
+      description: Published local QuestDB minimal HTTP health endpoint serving /health.
+
+stack-local:
+  defines: process-group
+  metadata:
+    name: QuestDB Standalone Local Stack
+    description: |
+      Local verification flavor of the standalone QuestDB stack. It uses durable
+      storage and generated non-default sensitive values, and publishes only the
+      QuestDB minimal HTTP health endpoint for external verification.
+    tags: questdb, database, time-series, standalone, local
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  runnable-list:
+    - questdb/stack-local-db

@@ -1,0 +1,146 @@
+namespace: questdb
+
+example-db:
+  defines: runnable
+  inherits: questdb/base
+  metadata:
+    name: QuestDB Component Example Database
+    description: |
+      QuestDB database used by the reusable component example. It inherits the
+      base component, keeps QuestDB private on the Monk network, and is checked
+      by a separate connected HTTP probe workload.
+    tags: questdb, database, time-series, example, local
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  variables:
+    storage-volume-name:
+      type: string
+      value: questdb-example
+      description: Monk volume subdirectory used for durable data in the component example.
+    http-user:
+      type: string
+      env: QDB_HTTP_USER
+      value: questdb
+      description: QuestDB HTTP basic-auth user for the component example.
+    http-password:
+      type: string
+      env: QDB_HTTP_PASSWORD
+      value: <- random-uuid
+      description: Sensitive generated QuestDB HTTP password for the component example. Inheriting deployments needing stable credentials must set this with secret("questdb-http-password").
+
+example-health:
+  defines: runnable
+  metadata:
+    name: QuestDB Component Example Health
+    description: |
+      Local HTTP probe for the QuestDB component example. It reads the QuestDB
+      health host and port from Monk connections and returns HTTP 200 from
+      /health only after QuestDB's own /health endpoint responds successfully.
+    tags: questdb, healthcheck, example, local
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  variables:
+    questdb-health-host:
+      type: string
+      env: QUESTDB_HEALTH_HOST
+      value: <- connection-hostname("questdb-health")
+      description: QuestDB health hostname read from the Monk connection.
+    questdb-health-port:
+      type: int
+      env: QUESTDB_HEALTH_PORT
+      value: <- connection-port("questdb-health")
+      description: QuestDB health port read from the Monk connection.
+    probe-port:
+      type: int
+      env: PROBE_PORT
+      value: 8080
+      description: HTTP port used by the local probe container.
+    probe-host-port:
+      type: int
+      value: 19013
+      description: Non-privileged host port published for external component example verification.
+  containers:
+    health:
+      image: python
+      image-tag: 3.13-alpine
+      restart: unless-stopped
+      bash: |
+        python - <<'PY'
+        import json
+        import os
+        import urllib.request
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        questdb_host = os.environ["QUESTDB_HEALTH_HOST"]
+        questdb_port = int(os.environ["QUESTDB_HEALTH_PORT"])
+        probe_port = int(os.environ.get("PROBE_PORT", "8080"))
+
+        def questdb_healthy():
+            url = f"http://{questdb_host}:{questdb_port}/health"
+            with urllib.request.urlopen(url, timeout=5) as response:
+                return 200 <= response.status < 300
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path != "/health":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                try:
+                    ok = questdb_healthy()
+                except Exception:
+                    ok = False
+                body = json.dumps({"status": "ok" if ok else "error"}).encode()
+                self.send_response(200 if ok else 503)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, fmt, *args):
+                return
+
+        ThreadingHTTPServer(("0.0.0.0", probe_port), Handler).serve_forever()
+        PY
+  services:
+    health:
+      container: health
+      port: <- $probe-port
+      protocol: tcp
+      publish: true
+      host-port: <- $probe-host-port
+      description: Published local HTTP health endpoint for component example verification.
+  connections:
+    questdb-health:
+      target: questdb/example-db
+      service: health
+      description: Connection to QuestDB's minimal HTTP health service.
+  depends:
+    wait-for:
+      runnables:
+        - questdb/example-db
+      timeout: 120
+
+example:
+  defines: process-group
+  metadata:
+    name: QuestDB Component Example
+    description: |
+      Component example composing the reusable QuestDB database with a connected
+      health probe. This proves another Monk workload can consume QuestDB through
+      service connections without hardcoded hostnames.
+    tags: questdb, database, time-series, example, local
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  runnable-list:
+    - questdb/example-db
+    - questdb/example-health

@@ -1,0 +1,130 @@
+namespace: questdb
+
+base:
+  defines: runnable
+  metadata:
+    name: QuestDB
+    description: |
+      Reusable QuestDB time-series database component for Monk application stacks.
+      QuestDB is self-contained and does not require a backing database, cache, or
+      queue. Applications that need durable analytical storage can connect through
+      the HTTP API, PostgreSQL wire protocol, or InfluxDB Line Protocol services.
+    tags: questdb, database, time-series, sql, analytics, component
+    website: https://questdb.com/
+    source: https://github.com/questdb/questdb
+    publisher: monk.io
+    icon: https://questdb.com/img/questdb-logo-themed.svg
+    private: false
+  variables:
+    questdb-image-tag:
+      type: string
+      value: latest
+      description: Public questdb/questdb Docker image tag to run.
+    questdb-root-dir:
+      type: string
+      env: QDB_ROOT
+      value: /var/lib/questdb
+      description: QuestDB root directory inside the container.
+    storage-volume-name:
+      type: string
+      value: questdb
+      description: Monk volume subdirectory used for durable QuestDB database files.
+    http-bind:
+      type: string
+      env: QDB_HTTP_NET_BIND_TO
+      value: 0.0.0.0:9000
+      description: QuestDB HTTP API and Web Console bind address inside the container.
+    http-port:
+      type: int
+      value: 9000
+      description: QuestDB HTTP API and Web Console port inside the container.
+    http-user:
+      type: string
+      env: QDB_HTTP_USER
+      value: ""
+      description: Optional QuestDB HTTP basic-auth user. Inheriting public deployments should set a non-empty user.
+    http-password:
+      type: string
+      env: QDB_HTTP_PASSWORD
+      value: ""
+      description: Sensitive optional QuestDB HTTP basic-auth password. Inheriting public deployments must set this with secret("questdb-http-password") or another plain secret name.
+    http-min-enabled:
+      type: string
+      env: QDB_HTTP_MIN_ENABLED
+      value: "true"
+      description: Enables QuestDB minimal HTTP server used for health checks.
+    http-min-bind:
+      type: string
+      env: QDB_HTTP_MIN_NET_BIND_TO
+      value: 0.0.0.0:9003
+      description: QuestDB minimal HTTP health server bind address inside the container.
+    health-port:
+      type: int
+      value: 9003
+      description: QuestDB minimal HTTP health port inside the container.
+    health-auth-required:
+      type: string
+      env: QDB_HTTP_HEALTH_CHECK_AUTHENTICATION_REQUIRED
+      value: "false"
+      description: Allows unauthenticated /health checks on the minimal HTTP health service.
+    pg-bind:
+      type: string
+      env: QDB_PG_NET_BIND_TO
+      value: 0.0.0.0:8812
+      description: QuestDB PostgreSQL wire protocol bind address inside the container.
+    pg-port:
+      type: int
+      value: 8812
+      description: QuestDB PostgreSQL wire protocol port inside the container.
+    pg-user:
+      type: string
+      env: QDB_PG_USER
+      value: questdb
+      description: QuestDB PostgreSQL wire protocol user. Inheriting deployments may override it.
+    pg-password:
+      type: string
+      env: QDB_PG_PASSWORD
+      value: <- random-uuid
+      description: Sensitive generated QuestDB PostgreSQL wire password. Inheriting deployments needing stable credentials must set this with secret("questdb-pg-password") or another plain secret name.
+    ilp-bind:
+      type: string
+      env: QDB_LINE_TCP_NET_BIND_TO
+      value: 0.0.0.0:9009
+      description: QuestDB InfluxDB Line Protocol TCP bind address inside the container.
+    ilp-port:
+      type: int
+      value: 9009
+      description: QuestDB InfluxDB Line Protocol TCP port inside the container.
+    metrics-enabled:
+      type: string
+      env: QDB_METRICS_ENABLED
+      value: "true"
+      description: Enables QuestDB internal metrics collection.
+  containers:
+    questdb:
+      image: questdb/questdb
+      image-tag: <- $questdb-image-tag
+      restart: unless-stopped
+      paths:
+        - <- `${volume-path}/${storage-volume-name}:${questdb-root-dir}`
+  services:
+    http:
+      container: questdb
+      port: <- $http-port
+      protocol: tcp
+      description: Private QuestDB HTTP API and Web Console endpoint for trusted Monk connections.
+    pgwire:
+      container: questdb
+      port: <- $pg-port
+      protocol: tcp
+      description: Private QuestDB PostgreSQL wire protocol endpoint for SQL clients.
+    ilp:
+      container: questdb
+      port: <- $ilp-port
+      protocol: tcp
+      description: Private QuestDB InfluxDB Line Protocol TCP ingestion endpoint.
+    health:
+      container: questdb
+      port: <- $health-port
+      protocol: tcp
+      description: Private QuestDB minimal HTTP health endpoint serving /health.
