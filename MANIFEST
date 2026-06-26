@@ -1,0 +1,3 @@
+REPO questdb
+LOAD questdb.yaml questdb-example.yaml questdb-stack.yaml
+ENTRY questdb/stack-local
