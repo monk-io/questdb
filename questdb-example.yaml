@@ -113,7 +113,6 @@ example-health:
       container: health
       port: <- $probe-port
       protocol: tcp
-      publish: true
       host-port: <- $probe-host-port
       description: Published local HTTP health endpoint for component example verification.
   connections:
