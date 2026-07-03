@@ -110,7 +110,6 @@ stack-local-db:
       container: questdb
       port: <- $health-port
       protocol: tcp
-      publish: true
       host-port: <- $health-host-port
       description: Published local QuestDB minimal HTTP health endpoint serving /health.
 
